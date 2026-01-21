@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 // Shared Audio Context for synthesized sound effects
-let audioCtx: AudioContext | null = null;
+let audioCtx: null | AudioContext = null;
 
 const playDefragBlip = () => {
   try {
@@ -64,32 +63,35 @@ const InteractiveTag: React.FC<TagProps> = ({ text, mousePos, containerRef, scro
   const cleanText = text.replace("_REF", "");
   
   const chaosState = useMemo(() => {
-    // Random position within the noise panel
-    const x = 5 + Math.random() * 90;
-    const y = 5 + Math.random() * 90;
+    // Organic scattering with enough buffer from edges for better composition
+    const x = 7 + Math.random() * 86;
+    const y = 7 + Math.random() * 86;
     
     /**
-     * TOPOLOGY LOGIC: Noise -> Signal
-     * The "Signal" is on the right side of the screen.
-     * We calculate distance from the right boundary of the noise panel (x=100, y=50).
-     * Tags closer to this point are "stable", tags further away (left side, corners) are "noisy".
+     * DEPTH TOPOLOGY: 
+     * The "Signal Gateway" is at the right-center (x=100, y=50).
+     * Depth is modeled as distance from this gateway.
      */
-    const distFromSignal = Math.sqrt(Math.pow(x - 100, 2) + Math.pow(y - 50, 2));
-    const normalizedDist = distFromSignal / 110; // 110 is approx max diagonal
+    const distFromSignalGateway = Math.sqrt(Math.pow(x - 100, 2) + Math.pow(y - 50, 2));
+    const maxDist = 110;
+    const normalizedDist = Math.min(distFromSignalGateway / maxDist, 1);
     
-    // Exponential noise factor (0 at the signal gateway, 1 at the far edges)
-    const noiseIntensity = Math.pow(normalizedDist, 1.5);
+    // Non-linear depth curve for dramatic peripheral movement
+    const depthFactor = Math.pow(normalizedDist, 2.2);
 
     return {
       x,
       y,
-      rot: (Math.random() * 80 - 40) * noiseIntensity, 
-      scale: 0.4 + (Math.random() * 0.9), // Significant size variation
-      opacity: (0.1 + Math.random() * 0.2) + (1 - noiseIntensity) * 0.3, // Brighter near signal
-      blur: (Math.random() * 4) * noiseIntensity,
-      // Dramatic parallax shift at the edges, near zero in the center/signal area
-      parallaxFactor: (Math.random() - 0.5) * 1.5 * noiseIntensity,
-      stableRot: (Math.random() * 6 - 3)
+      // Rotation capped for readability, but organic enough to feel chaotic
+      rot: (Math.random() * 30 - 15) * (0.4 + depthFactor * 0.6), 
+      // Scale: Periphery tags are 'closer' (larger), Signal tags are 'deeper' (smaller)
+      scale: 0.5 + (Math.random() * 0.2) + (depthFactor * 1.3), 
+      // Opacity layered by depth
+      opacity: Math.max(0.1, (0.45 - (depthFactor * 0.1))),
+      blur: (Math.random() * 3) * depthFactor,
+      // High parallax multiplier at the edges, near zero at the signal center
+      parallaxFactor: (Math.random() - 0.5) * 4.5 * depthFactor,
+      stableRot: (Math.random() * 3 - 1.5)
     };
   }, []);
 
@@ -105,29 +107,30 @@ const InteractiveTag: React.FC<TagProps> = ({ text, mousePos, containerRef, scro
       Math.pow(mousePos.y - tagCenterY, 2)
     );
 
-    const active = dist < 140;
+    // Defrag radius influenced by depth (larger items easier to defrag)
+    const active = dist < (115 + chaosState.scale * 20);
     setIsDefragged(active);
 
     if (active && !wasDefragged.current) {
       playDefragBlip();
     }
     wasDefragged.current = active;
-  }, [mousePos]);
+  }, [mousePos, chaosState.scale]);
 
   const parallaxY = isDefragged ? 0 : scrollOffset * chaosState.parallaxFactor;
 
   return (
     <div 
       ref={elementRef}
-      className={`absolute font-mono transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-default select-none whitespace-nowrap
+      className={`absolute font-mono transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-default select-none whitespace-nowrap
         ${isDefragged 
-          ? 'text-white z-50 defrag-glow opacity-100 scale-[1.15]' 
+          ? 'text-white z-50 defrag-glow opacity-100 scale-[1.1]' 
           : 'text-zinc-700 z-10'}
       `}
       style={{
         left: `${chaosState.x}%`,
         top: `calc(${chaosState.y}% + ${parallaxY}px)`,
-        fontSize: isDefragged ? '1.1rem' : `${0.6 * chaosState.scale}rem`,
+        fontSize: isDefragged ? '1.05rem' : `${0.6 * chaosState.scale}rem`,
         fontWeight: isDefragged ? 800 : 400,
         opacity: isDefragged ? 1 : chaosState.opacity,
         filter: isDefragged ? 'none' : `blur(${chaosState.blur}px)`,
@@ -137,7 +140,7 @@ const InteractiveTag: React.FC<TagProps> = ({ text, mousePos, containerRef, scro
       }}
     >
       <div 
-        className={`relative px-2 py-1 transition-all duration-500 border
+        className={`relative px-2 py-0.5 transition-all duration-500 border
           ${isDefragged 
             ? 'bg-orange-600/20 border-orange-600/80 animate-[borderPulse_1.5s_infinite]' 
             : 'bg-transparent border-transparent'}`}
@@ -148,8 +151,8 @@ const InteractiveTag: React.FC<TagProps> = ({ text, mousePos, containerRef, scro
           <>
             <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-orange-600"></div>
             <div className="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-orange-600"></div>
-            <div className="absolute -top-5 left-0 text-[6px] text-orange-400 font-bold tracking-[0.3em] uppercase opacity-90">
-              SIGNAL_STABLE
+            <div className="absolute -top-4 left-0 text-[5px] text-orange-400 font-bold tracking-[0.25em] uppercase opacity-90">
+              STABLE_READ_OK
             </div>
           </>
         )}
@@ -183,9 +186,13 @@ export const Hero: React.FC = () => {
     >
       <style>{`
         @keyframes borderPulse {
-          0% { border-color: rgba(234, 88, 12, 0.4); box-shadow: 0 0 5px rgba(234, 88, 12, 0.2); }
-          50% { border-color: rgba(234, 88, 12, 1); box-shadow: 0 0 15px rgba(234, 88, 12, 0.4); }
-          100% { border-color: rgba(234, 88, 12, 0.4); box-shadow: 0 0 5px rgba(234, 88, 12, 0.2); }
+          0% { border-color: rgba(234, 88, 12, 0.3); box-shadow: 0 0 5px rgba(234, 88, 12, 0.1); }
+          50% { border-color: rgba(234, 88, 12, 1); box-shadow: 0 0 20px rgba(234, 88, 12, 0.4); }
+          100% { border-color: rgba(234, 88, 12, 0.3); box-shadow: 0 0 5px rgba(234, 88, 12, 0.1); }
+        }
+        @keyframes signalPulse {
+          0%, 100% { opacity: 0.03; transform: scale(1); filter: blur(0px); }
+          50% { opacity: 0.08; transform: scale(1.05); filter: blur(1px); }
         }
       `}</style>
 
@@ -213,19 +220,19 @@ export const Hero: React.FC = () => {
         </div>
         
         <div className="absolute top-12 left-12 font-mono text-[9px] text-zinc-800 tracking-[0.4em] uppercase pointer-events-none border-l border-zinc-900 pl-4 py-2">
-          OVERWHELMING_NOISE: DETECTED<br/>
-          DEPTH_FIELD: ACTIVE
+          ORGANIC_DATA_FIELD: ACTIVE<br/>
+          VORTEX_DEPTH: ENGAGED
         </div>
       </div>
 
       {/* Right: The Signal */}
       <div className="w-full md:w-2/5 bg-zinc-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-12 border-t md:border-t-0 md:border-l border-white/5 z-40 relative overflow-hidden">
-        {/* Parallax Background Anchor Point: #DEFRAG */}
+        {/* Parallax & Pulsing Background Anchor: #DEFRAG */}
         <div 
           className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0"
           style={{ transform: `translateY(${scrollOffset * 0.15}px)` }}
         >
-          <span className="text-[18vw] md:text-[10vw] font-black text-white/[0.03] tracking-tighter uppercase font-mono italic">
+          <span className="text-[18vw] md:text-[10vw] font-black text-white tracking-tighter uppercase font-mono italic animate-[signalPulse_6s_infinite_ease-in-out]">
             #DEFRAG
           </span>
         </div>
