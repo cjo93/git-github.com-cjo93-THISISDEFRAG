@@ -1,31 +1,36 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { UnitData } from "../types";
 
-const API_KEY = process.env.API_KEY;
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export const generateManualPreview = async (subjectInfo: string) => {
-  if (!API_KEY) throw new Error("API Key not found");
-  
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+export const generateManualPreview = async (unitA: UnitData, unitB: UnitData) => {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Translate the following description of a difficult person into a mechanical "User Manual" summary. 
-    Subject Info: ${subjectInfo}
+    contents: `Compile a "Relationship Operating Manual" by scraping the underlying source code of these two units. 
     
-    Structure the response into 3 specific sections:
-    1. Specifications: How they run (core mechanics).
-    2. Procedures: How to handle them (daily interactions).
-    3. Troubleshooting: Exactly what to do when they glitch (conflict resolution).
+    UNIT A (OPERATOR): Name: ${unitA.name}, Model: ${unitA.model}, Coordinates: ${unitA.location}
+    UNIT B (SUBJECT): Name: ${unitB.name}, Model: ${unitB.model}, Coordinates: ${unitB.location}
     
-    Tone: Industrial, mechanical, objective, devoid of fluff. Use terms like "input," "latency," "buffer," "thermal limit," "kinetic protocol."`,
+    THE MANIFESTO: Human behavior isn't random; it is coded. You are scraping the universal backend (Planetary Geometry, Hexagram Physics, Genetic Codons) to extract instructions. Strip away all mysticism and "magic." You are a System Architect writing an industrial tech manual.
+    
+    TONE: Strictly industrial, mechanical, objective, and digital. Use terms like "Hardware", "Scraping", "Coordinates", "Instructions", "Mismatch", "Buffer", "Packet Loss", "Voltage", "Source Code", "Thermal Throttling", "Kernel Panic".
+    
+    STRUCTURE REQUIRED:
+    1. Specifications (Hardware Overiew): Detail the geometric friction between their source codes. Frame the conflict as a hardware limitation, not a personality flaw.
+    2. Procedures (Engagement Protocols): Step-by-step instructions for data transmission. How should Unit A initiate contact without causing Unit B's CPU to spike or thermal throttle?
+    3. Troubleshooting (Patch Scripts): Specific mechanical "patches" for common errors (Silent Treatment, Yelling, Circular Logic) based on their unique coordinate data.
+    
+    Response must be valid JSON matching the schema.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          specifications: { type: Type.STRING, description: "Technical specs of the person's behavior" },
-          procedures: { type: Type.STRING, description: "Step-by-step operating procedures" },
-          troubleshooting: { type: Type.STRING, description: "Conflict resolution steps" }
+          specifications: { type: Type.STRING },
+          procedures: { type: Type.STRING },
+          troubleshooting: { type: Type.STRING }
         },
         required: ["specifications", "procedures", "troubleshooting"]
       }
@@ -33,4 +38,43 @@ export const generateManualPreview = async (subjectInfo: string) => {
   });
 
   return JSON.parse(response.text);
+};
+
+export const playProxyVoice = async (text: string) => {
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash-preview-tts",
+    contents: [{ parts: [{ text: `Say this in a neutral, calm, cold, mechanical robotic British voice: ${text}` }] }],
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: 'Charon' },
+        },
+      },
+    },
+  });
+
+  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  if (base64Audio) {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    const audioData = atob(base64Audio);
+    const arrayBuffer = new ArrayBuffer(audioData.length);
+    const view = new Uint8Array(arrayBuffer);
+    for (let i = 0; i < audioData.length; i++) {
+      view[i] = audioData.charCodeAt(i);
+    }
+    
+    const dataInt16 = new Int16Array(view.buffer);
+    const buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
+    const channelData = buffer.getChannelData(0);
+    for (let i = 0; i < dataInt16.length; i++) {
+      channelData[i] = dataInt16[i] / 32768.0;
+    }
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start();
+  }
 };
