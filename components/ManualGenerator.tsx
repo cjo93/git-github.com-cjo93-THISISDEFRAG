@@ -62,7 +62,6 @@ const Terminal: React.FC<{ unitA: UnitData; unitB: UnitData }> = ({ unitA, unitB
 };
 
 export const ManualGenerator: React.FC<GeneratorProps> = ({ onUnlock }) => {
-  // Fix: Add missing 'id' property to comply with UnitData type definition
   const [unitA, setUnitA] = useState<UnitData>({ id: 'initial-operator', name: 'CHAD', birthDate: '', birthTime: '12:00', location: '' });
   const [unitB, setUnitB] = useState<UnitData>({ id: 'initial-subject', name: 'FRED', birthDate: '', birthTime: '12:00', location: '' });
   
